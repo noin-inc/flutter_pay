@@ -20,6 +20,11 @@ class FlutterPay {
     return canMakePayments;
   }
 
+  /// Show payment Apple Pay setup
+  Future<void> showPaymentSetup() async {
+    await _channel.invokeMethod('showPaymentSetUp');
+  }
+
   /// Returns true if Apple/Google Pay is available on device and there is at least one activated card
   ///
   /// You can set allowed payment networks in [allowedPaymentNetworks] parameter.
@@ -48,7 +53,7 @@ class FlutterPay {
   /// * [paymentItems] - affects only Apple Pay. See [PaymentItem]
   /// * [merchantName] - affects only Google Pay.
   /// Mercant name which will be displayed to customer.
-  Future<String> requestPayment({
+  Future<PaymentResult> requestPayment({
     GoogleParameters? googleParameters,
     AppleParameters? appleParameters,
     List<PaymentNetwork> allowedPaymentNetworks = const [],
@@ -77,7 +82,7 @@ class FlutterPay {
 
     try {
       var response = await _channel.invokeMethod('requestPayment', params);
-      var payResponse = Map<String, String>.from(response);
+      var payResponse = Map<String, dynamic>.from(response);
       if (payResponse == null) {
         throw FlutterPayError(description: "Pay response cannot be parsed");
       }
@@ -85,19 +90,36 @@ class FlutterPay {
       var paymentToken = payResponse["token"];
       if (paymentToken != null) {
         print("Payment token: $paymentToken");
-        return paymentToken;
+
+        var paymentResult = PaymentResult(paymentToken: paymentToken);
+        if( Platform.isIOS ) {
+          paymentResult.applePayResult = ApplePayResult(
+              emailAddress: payResponse["applePayParameters"]["emailAddress"],
+              phoneNumber: payResponse["applePayParameters"]["phoneNumber"],
+              familyName: payResponse["applePayParameters"]["familyName"],
+              givenName: payResponse["applePayParameters"]["givenName"],
+              postalCode: payResponse["applePayParameters"]["postalCode"],
+              state: payResponse["applePayParameters"]["state"],
+              city: payResponse["applePayParameters"]["city"],
+              street: payResponse["applePayParameters"]["street"],
+              country : payResponse["applePayParameters"]["country"],
+              subAdministrativeArea : payResponse["applePayParameters"]["subAdministrativeArea"],
+              subLocality : payResponse["applePayParameters"]["subLocality"],
+          );
+        }
+        return paymentResult;
       } else {
         print("Payment token: null");
-        return "";
+        return PaymentResult(paymentToken: "");
       }
     } on PlatformException catch (error) {
       if (error.code == "userCancelledError") {
         print(error.message);
-        return "";
+        return PaymentResult(paymentToken: "");
       }
       if (error.code == "paymentError") {
         print(error.message);
-        return "";
+        return PaymentResult(paymentToken: "");
       }
       throw FlutterPayError(code: error.code, description: error.message);
     }

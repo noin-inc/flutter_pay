@@ -22,8 +22,14 @@ public class SwiftFlutterPayPlugin: NSObject, FlutterPlugin {
         canMakePaymentsWithActiveCard(arguments: call.arguments, result: result)
     } else if(call.method == "requestPayment") {
         requestPayment(arguments: call.arguments, result: result)
-    } else if(call.method == "switchEnvironment") {}
-    
+    } else if(call.method == "switchEnvironment") {
+    } else if(call.method == "showPaymentSetUp") {
+        showPaymentSetUp();
+    }
+  }
+
+  func showPaymentSetUp() {
+      PKPassLibrary().openPaymentSetup()
   }
     
     func canMakePayment(arguments: Any? = nil, result: @escaping FlutterResult) {
@@ -48,7 +54,8 @@ public class SwiftFlutterPayPlugin: NSObject, FlutterPlugin {
                 let currency = params["currencyCode"] as? String,
                 let countryCode = params["countryCode"] as? String,
                 let allowedPaymentNetworks = params["allowedPaymentNetworks"] as? [String],
-                let items = params["items"] as? [[String: String]] else {
+                let items = params["items"] as? [[String: String]],
+                let requiredShippingContactFields = params["requiredShippingContactFields"] as? Bool else {
                     result(FlutterError(code: "invalidParameters", message: "Invalid parameters", details: nil))
                     return
         }
@@ -72,18 +79,43 @@ public class SwiftFlutterPayPlugin: NSObject, FlutterPlugin {
         paymentRequest.countryCode = countryCode
         paymentRequest.currencyCode = currency
         paymentRequest.supportedNetworks = paymentNetworks
+        if( requiredShippingContactFields ) {
+            paymentRequest.requiredShippingContactFields = [
+                PKContactField.emailAddress,
+                PKContactField.name,
+                PKContactField.phoneNumber,
+                PKContactField.phoneticName,
+                PKContactField.postalAddress
+            ]
+        }
+
         
         let paymentController = PKPaymentAuthorizationController(paymentRequest: paymentRequest)
         paymentController.delegate = self
         self.flutterResult = result
         paymentController.present(completion: nil)
     }
-    
+
     private func paymentResult(pkPayment: PKPayment?) {
         if let result = flutterResult {
             if let payment = pkPayment {
                 let token = String(data: payment.token.paymentData, encoding: .utf8)
-                result(["token": token])
+                result([
+                    "token": token,
+                    "applePayParameters": [
+                        "emailAddress" : payment.shippingContact?.emailAddress,
+                        "phoneNumber" : payment.shippingContact?.phoneNumber?.stringValue,
+                        "familyName" : payment.shippingContact?.name?.familyName,
+                        "givenName": payment.shippingContact?.name?.givenName,
+                        "street" : payment.shippingContact?.postalAddress?.street,
+                        "city" : payment.shippingContact?.postalAddress?.city,
+                        "state" : payment.shippingContact?.postalAddress?.state,
+                        "postalCode" : payment.shippingContact?.postalAddress?.postalCode,
+                        "country" : payment.shippingContact?.postalAddress?.country,
+                        "subAdministrativeArea" : payment.shippingContact?.postalAddress?.subAdministrativeArea,
+                        "subLocality" : payment.shippingContact?.postalAddress?.subLocality,
+                    ]
+                ])
             } else {
                 result(FlutterError(code: "userCancelledError", message: "User cancelled the payment", details: nil))
             }
@@ -92,14 +124,12 @@ public class SwiftFlutterPayPlugin: NSObject, FlutterPlugin {
     }
 }
 
-@available(iOS 10.0, *)
 extension SwiftFlutterPayPlugin: PKPaymentAuthorizationControllerDelegate {
     public func paymentAuthorizationControllerDidFinish(_ controller: PKPaymentAuthorizationController) {
         paymentResult(pkPayment: nil)
         controller.dismiss(completion: nil)
     }
-    
-    @available(iOS 11.0, *)
+
     public func paymentAuthorizationController(_ controller: PKPaymentAuthorizationController, didAuthorizePayment payment: PKPayment, handler completion: @escaping (PKPaymentAuthorizationResult) ->  Void) {
         paymentResult(pkPayment: payment)
         completion(PKPaymentAuthorizationResult(status: .success, errors: nil))
