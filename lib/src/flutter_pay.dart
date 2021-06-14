@@ -72,6 +72,23 @@ class FlutterPay {
       "emailRequired": emailRequired,
     };
 
+    // callback from swift whether payment accept or reject.
+    if( Platform.isIOS ) {
+      _channel.setMethodCallHandler( (methodCall) async {
+        if( methodCall.method == "validatePaymentResult" ) {
+          var rawPaymentResult = methodCall.arguments;
+          if( appleParameters?.applePayResultValidation==null ) {
+            // accept if validation is all okay.
+            return true;
+          }
+          // convert native arguments Map<Object?, Object?> to an object PaymentResult.
+          var paymentResult = PaymentResult.fromNative( rawPaymentResult );
+          // validate a result of payment on the flutter.
+          return await appleParameters?.applePayResultValidation?.call( paymentResult );
+        }
+      } );
+    }
+
     if (Platform.isAndroid && googleParameters != null) {
       params.addAll(googleParameters.toMap());
     } else if (Platform.isIOS && appleParameters != null) {
@@ -93,19 +110,7 @@ class FlutterPay {
 
         var paymentResult = PaymentResult(paymentToken: paymentToken);
         if( Platform.isIOS ) {
-          paymentResult.applePayResult = ApplePayResult(
-              emailAddress: payResponse["applePayParameters"]["emailAddress"],
-              phoneNumber: payResponse["applePayParameters"]["phoneNumber"],
-              familyName: payResponse["applePayParameters"]["familyName"],
-              givenName: payResponse["applePayParameters"]["givenName"],
-              postalCode: payResponse["applePayParameters"]["postalCode"],
-              state: payResponse["applePayParameters"]["state"],
-              city: payResponse["applePayParameters"]["city"],
-              street: payResponse["applePayParameters"]["street"],
-              country : payResponse["applePayParameters"]["country"],
-              subAdministrativeArea : payResponse["applePayParameters"]["subAdministrativeArea"],
-              subLocality : payResponse["applePayParameters"]["subLocality"],
-          );
+          paymentResult.applePayResult = ApplePayResult.fromNative(payResponse);
         }
         return paymentResult;
       } else {
@@ -124,4 +129,5 @@ class FlutterPay {
       throw FlutterPayError(code: error.code, description: error.message);
     }
   }
+
 }
