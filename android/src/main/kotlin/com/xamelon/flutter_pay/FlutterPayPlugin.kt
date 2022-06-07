@@ -48,7 +48,7 @@ class FlutterPayPlugin : FlutterPlugin, MethodCallHandler, PluginRegistry.Activi
             val plugin = FlutterPayPlugin()
             channel.setMethodCallHandler(plugin)
             registrar.addActivityResultListener(plugin)
-            plugin.activity = registrar.activity()
+            plugin.activity = registrar.activity()!!
             plugin.createPaymentsClient()
         }
     }
@@ -61,7 +61,7 @@ class FlutterPayPlugin : FlutterPlugin, MethodCallHandler, PluginRegistry.Activi
         if (args !is Map<String, Any> && (method == "canMakePaymentsWithActiveCard" || method == "requestPayment" || method == "switchEnvironment" )) {
             this.lastResult?.error("invalidParameters", "Invalid parameters", "Invalid parameters")
             return
-        } 
+        }
 
         when (method) {
             "getPlatformVersion" -> result.success("Android ${android.os.Build.VERSION.RELEASE}")
