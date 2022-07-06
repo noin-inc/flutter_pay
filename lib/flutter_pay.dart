@@ -13,3 +13,4 @@ part 'src/apple_parameters.dart';
 part 'src/google_parameters.dart';
 part 'src/card_auth_methods.dart';
 part 'src/payment_result.dart';
+part 'src/merchant_capability.dart';
